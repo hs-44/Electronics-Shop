@@ -62,7 +62,7 @@ pipeline {
                     '
 
                     scp -o StrictHostKeyChecking=no -r \
-                    Metronic-Shop-UI-master \
+                    Metronic-Shop-UI-master/Metronic-Shop-UI-master/* \
                     Dockerfile \
                     ${DOCKER_SERVER}:${DOCKER_PATH}/
 
