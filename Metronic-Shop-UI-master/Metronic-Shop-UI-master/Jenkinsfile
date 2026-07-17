@@ -2,11 +2,15 @@ pipeline {
 
     agent any
 
+    tools {
+        sonarQube 'sonar-scanner'
+    }
+
     environment {
 
         SONAR_PROJECT_KEY = "Electronic-shop"
 
-        DOCKER_SERVER = "ubuntu@54.89.204.152"
+        DOCKER_SERVER = "ec2-user@54.89.204.152"
 
         DOCKER_IMAGE = "electronic-shop"
 
@@ -22,24 +26,25 @@ pipeline {
 
             steps {
 
-                echo "Pulling code from GitHub"
+                echo "Checking out code from GitHub"
 
                 git branch: 'main',
                     url: 'https://github.com/hs-44/Electronics-Shop.git'
 
             }
-
         }
 
 
 
-        stage('SonarQube Scan') {
+        stage('SonarQube Analysis') {
 
             steps {
 
-                echo "Running SonarQube Analysis"
+                echo "Running SonarQube Scan"
 
-                withSonarQubeEnv('SonarQube') {
+
+                withSonarQubeEnv('sonar-server') {
+
 
                     sh """
 
@@ -63,6 +68,7 @@ pipeline {
 
                 echo "Building Docker image"
 
+
                 sh """
 
                 docker build \
@@ -76,20 +82,23 @@ pipeline {
 
 
 
-        stage('Transfer Image To Docker Server') {
+        stage('Copy Image To Docker Server') {
 
             steps {
 
-                echo "Copying image to Docker server"
+                echo "Sending image to Docker server"
+
 
                 sh """
 
-                docker save ${DOCKER_IMAGE}:latest \
+                docker save \
+                ${DOCKER_IMAGE}:latest \
                 -o ${DOCKER_IMAGE}.tar
 
 
                 scp ${DOCKER_IMAGE}.tar \
-                ${DOCKER_SERVER}:/tmp/
+                ${DOCKER_SERVER}:/tmp/${DOCKER_IMAGE}.tar
+
 
                 """
 
@@ -103,12 +112,13 @@ pipeline {
 
             steps {
 
-                echo "Deploying application"
+                echo "Deploying container"
 
 
                 sh """
 
-                ssh ${DOCKER_SERVER} '
+                ssh ${DOCKER_SERVER} << EOF
+
 
                 docker load \
                 -i /tmp/${DOCKER_IMAGE}.tar
@@ -125,7 +135,8 @@ pipeline {
                 -p 80:80 \
                 ${DOCKER_IMAGE}:latest
 
-                '
+
+EOF
 
                 """
 
@@ -139,16 +150,20 @@ pipeline {
 
     post {
 
+
         success {
 
-            echo "Deployment completed successfully"
+            echo "================================="
+            echo "Deployment Successful"
+            echo "Website: http://54.89.204.152"
+            echo "================================="
 
         }
 
 
         failure {
 
-            echo "Deployment failed"
+            echo "Pipeline Failed - Check Console Output"
 
         }
 
