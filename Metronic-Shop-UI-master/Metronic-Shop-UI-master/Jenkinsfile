@@ -3,36 +3,23 @@ pipeline {
     agent any
 
     environment {
-
         SONAR_PROJECT_KEY = "Electronic-shop"
-
         DOCKER_SERVER = "ubuntu@54.89.204.152"
-
-        REMOTE_PATH = "/home/ubuntu/website1"
-
-        DOCKER_IMAGE = "electronic-shop"
-
-        DOCKER_CONTAINER = "electronic-shop-container"
-
+        DOCKER_PATH = "/home/ubuntu/website1"
+        IMAGE_NAME = "electronic-shop"
     }
 
 
     stages {
 
-
         stage('Checkout Code') {
-
             steps {
-
                 echo "Getting code from GitHub"
 
                 git branch: 'main',
                     url: 'https://github.com/hs-44/Electronics-Shop.git'
-
             }
-
         }
-
 
 
         stage('SonarQube Analysis') {
@@ -48,19 +35,14 @@ pipeline {
                         def scannerHome = tool 'sonar-scanner'
 
                         sh """
-
                         ${scannerHome}/bin/sonar-scanner \
                         -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                         -Dsonar.sources=.
-
                         """
 
                     }
-
                 }
-
             }
-
         }
 
 
@@ -71,23 +53,23 @@ pipeline {
 
                 echo "Copying code to Docker server"
 
+                sshagent(['ubuntu_docker']) {
 
-                sh """
+                    sh """
 
-                ssh ${DOCKER_SERVER} '
+                    ssh -o StrictHostKeyChecking=no ${DOCKER_SERVER} '
+                    
+                    rm -rf ${DOCKER_PATH}/*
+                    mkdir -p ${DOCKER_PATH}
 
-                rm -rf ${REMOTE_PATH}/*
+                    '
 
-                '
+                    scp -o StrictHostKeyChecking=no -r ./* ${DOCKER_SERVER}:${DOCKER_PATH}/
 
-
-                scp -r * ${DOCKER_SERVER}:${REMOTE_PATH}/
-
-
-                """
+                    """
+                }
 
             }
-
         }
 
 
@@ -98,21 +80,21 @@ pipeline {
 
                 echo "Building Docker Image on Docker Server"
 
+                sshagent(['ubuntu_docker']) {
 
-                sh """
+                    sh """
 
-                ssh ${DOCKER_SERVER} '
+                    ssh -o StrictHostKeyChecking=no ${DOCKER_SERVER} '
 
-                cd ${REMOTE_PATH}
+                    cd ${DOCKER_PATH}
 
+                    docker build -t ${IMAGE_NAME}:latest .
 
-                docker build \
-                -t ${DOCKER_IMAGE}:latest .
+                    '
 
+                    """
 
-                '
-
-                """
+                }
 
             }
 
@@ -124,49 +106,49 @@ pipeline {
 
             steps {
 
-                echo "Running Container"
+                echo "Deploying Container"
+
+                sshagent(['ubuntu_docker']) {
+
+                    sh """
+
+                    ssh -o StrictHostKeyChecking=no ${DOCKER_SERVER} '
+
+                    docker stop electronic-container || true
+
+                    docker rm electronic-container || true
 
 
-                sh """
+                    docker run -d \
+                    --name electronic-container \
+                    -p 80:80 \
+                    ${IMAGE_NAME}:latest
 
-                ssh ${DOCKER_SERVER} '
+                    '
 
-                docker stop ${DOCKER_CONTAINER} || true
+                    """
 
-
-                docker rm ${DOCKER_CONTAINER} || true
-
-
-                docker run -d \
-                --name ${DOCKER_CONTAINER} \
-                -p 80:80 \
-                ${DOCKER_IMAGE}:latest
-
-
-                '
-
-                """
+                }
 
             }
 
         }
 
-
     }
+
 
 
     post {
 
         success {
 
-            echo "Deployment completed successfully"
+            echo "Deployment Successful"
 
         }
 
-
         failure {
 
-            echo "Deployment failed"
+            echo "Deployment Failed"
 
         }
 
