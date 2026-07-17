@@ -3,11 +3,6 @@ pipeline {
     agent any
 
 
-    tools {
-        sonarRunner 'sonar-scanner'
-    }
-
-
     environment {
 
         SONAR_PROJECT_KEY = "Electronic-shop"
@@ -28,7 +23,7 @@ pipeline {
 
             steps {
 
-                echo "Cloning GitHub repository"
+                echo "Checkout code from GitHub"
 
                 git branch: 'main',
                     url: 'https://github.com/hs-44/Electronics-Shop.git'
@@ -42,19 +37,26 @@ pipeline {
 
             steps {
 
-                echo "Starting SonarQube Scan"
+                echo "Running SonarQube Scanner"
 
 
                 withSonarQubeEnv('sonar-server') {
 
 
-                    sh """
+                    script {
 
-                    sonar-scanner \
-                    -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                    -Dsonar.sources=.
+                        def scannerHome = tool 'sonar-scanner'
 
-                    """
+
+                        sh """
+
+                        ${scannerHome}/bin/sonar-scanner \
+                        -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                        -Dsonar.sources=.
+
+                        """
+
+                    }
 
                 }
 
@@ -68,7 +70,7 @@ pipeline {
 
             steps {
 
-                echo "Building Docker Image"
+                echo "Building Docker image"
 
 
                 sh """
@@ -88,19 +90,17 @@ pipeline {
 
             steps {
 
-                echo "Copying Docker image"
+                echo "Copying image to Docker server"
 
 
                 sh """
 
-                docker save \
-                ${DOCKER_IMAGE}:latest \
+                docker save ${DOCKER_IMAGE}:latest \
                 -o ${DOCKER_IMAGE}.tar
 
 
                 scp ${DOCKER_IMAGE}.tar \
                 ${DOCKER_SERVER}:/tmp/${DOCKER_IMAGE}.tar
-
 
                 """
 
@@ -110,20 +110,18 @@ pipeline {
 
 
 
-        stage('Deploy On Docker Server') {
+        stage('Deploy Container') {
 
             steps {
 
-                echo "Deploying application"
+                echo "Deploying container"
 
 
                 sh """
 
-                ssh ${DOCKER_SERVER} << EOF
+                ssh ${DOCKER_SERVER} '
 
-
-                docker load \
-                -i /tmp/${DOCKER_IMAGE}.tar
+                docker load -i /tmp/${DOCKER_IMAGE}.tar
 
 
                 docker stop ${DOCKER_CONTAINER} || true
@@ -137,8 +135,7 @@ pipeline {
                 -p 80:80 \
                 ${DOCKER_IMAGE}:latest
 
-
-EOF
+                '
 
                 """
 
@@ -150,24 +147,19 @@ EOF
     }
 
 
-
     post {
-
 
         success {
 
-            echo "===================================="
-            echo "BUILD SUCCESS"
-            echo "Application URL:"
-            echo "http://54.89.204.152"
-            echo "===================================="
+            echo "Deployment Successful"
+            echo "URL: http://54.89.204.152"
 
         }
 
 
         failure {
 
-            echo "BUILD FAILED - Check Console Output"
+            echo "Pipeline Failed"
 
         }
 
