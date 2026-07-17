@@ -2,15 +2,17 @@ pipeline {
 
     agent any
 
+
     tools {
-        sonarQube 'sonar-scanner'
+        sonarRunner 'sonar-scanner'
     }
+
 
     environment {
 
         SONAR_PROJECT_KEY = "Electronic-shop"
 
-        DOCKER_SERVER = "ubuntu@54.89.204.152"
+        DOCKER_SERVER = "ec2-user@54.89.204.152"
 
         DOCKER_IMAGE = "electronic-shop"
 
@@ -26,7 +28,7 @@ pipeline {
 
             steps {
 
-                echo "Checking out code from GitHub"
+                echo "Cloning GitHub repository"
 
                 git branch: 'main',
                     url: 'https://github.com/hs-44/Electronics-Shop.git'
@@ -40,7 +42,7 @@ pipeline {
 
             steps {
 
-                echo "Running SonarQube Scan"
+                echo "Starting SonarQube Scan"
 
 
                 withSonarQubeEnv('sonar-server') {
@@ -66,7 +68,7 @@ pipeline {
 
             steps {
 
-                echo "Building Docker image"
+                echo "Building Docker Image"
 
 
                 sh """
@@ -86,7 +88,7 @@ pipeline {
 
             steps {
 
-                echo "Sending image to Docker server"
+                echo "Copying Docker image"
 
 
                 sh """
@@ -108,11 +110,11 @@ pipeline {
 
 
 
-        stage('Deploy Container') {
+        stage('Deploy On Docker Server') {
 
             steps {
 
-                echo "Deploying container"
+                echo "Deploying application"
 
 
                 sh """
@@ -148,22 +150,24 @@ EOF
     }
 
 
+
     post {
 
 
         success {
 
-            echo "================================="
-            echo "Deployment Successful"
-            echo "Website: http://54.89.204.152"
-            echo "================================="
+            echo "===================================="
+            echo "BUILD SUCCESS"
+            echo "Application URL:"
+            echo "http://54.89.204.152"
+            echo "===================================="
 
         }
 
 
         failure {
 
-            echo "Pipeline Failed - Check Console Output"
+            echo "BUILD FAILED - Check Console Output"
 
         }
 
