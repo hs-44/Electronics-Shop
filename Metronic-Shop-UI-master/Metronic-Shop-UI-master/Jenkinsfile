@@ -1,0 +1,157 @@
+pipeline {
+
+    agent any
+
+    environment {
+
+        SONAR_PROJECT_KEY = "Electronic-shop"
+
+        DOCKER_SERVER = "ubuntu@54.89.204.152"
+
+        DOCKER_IMAGE = "electronic-shop"
+
+        DOCKER_CONTAINER = "electronic-shop-container"
+
+    }
+
+
+    stages {
+
+
+        stage('Checkout Code') {
+
+            steps {
+
+                echo "Pulling code from GitHub"
+
+                git branch: 'main',
+                    url: 'https://github.com/hs-44/Electronics-Shop.git'
+
+            }
+
+        }
+
+
+
+        stage('SonarQube Scan') {
+
+            steps {
+
+                echo "Running SonarQube Analysis"
+
+                withSonarQubeEnv('SonarQube') {
+
+                    sh """
+
+                    sonar-scanner \
+                    -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                    -Dsonar.sources=.
+
+                    """
+
+                }
+
+            }
+
+        }
+
+
+
+        stage('Docker Build') {
+
+            steps {
+
+                echo "Building Docker image"
+
+                sh """
+
+                docker build \
+                -t ${DOCKER_IMAGE}:latest .
+
+                """
+
+            }
+
+        }
+
+
+
+        stage('Transfer Image To Docker Server') {
+
+            steps {
+
+                echo "Copying image to Docker server"
+
+                sh """
+
+                docker save ${DOCKER_IMAGE}:latest \
+                -o ${DOCKER_IMAGE}.tar
+
+
+                scp ${DOCKER_IMAGE}.tar \
+                ${DOCKER_SERVER}:/tmp/
+
+                """
+
+            }
+
+        }
+
+
+
+        stage('Deploy Container') {
+
+            steps {
+
+                echo "Deploying application"
+
+
+                sh """
+
+                ssh ${DOCKER_SERVER} '
+
+                docker load \
+                -i /tmp/${DOCKER_IMAGE}.tar
+
+
+                docker stop ${DOCKER_CONTAINER} || true
+
+
+                docker rm ${DOCKER_CONTAINER} || true
+
+
+                docker run -d \
+                --name ${DOCKER_CONTAINER} \
+                -p 80:80 \
+                ${DOCKER_IMAGE}:latest
+
+                '
+
+                """
+
+            }
+
+        }
+
+
+    }
+
+
+    post {
+
+        success {
+
+            echo "Deployment completed successfully"
+
+        }
+
+
+        failure {
+
+            echo "Deployment failed"
+
+        }
+
+    }
+
+}
